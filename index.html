@@ -1,0 +1,2300 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>pxl</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.42/build/spline-viewer.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=block" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* INFO button textbox bottom guideline:
+               info buttons have top: 917.5px and height: 19px, with translateY(-50%)
+               => bottom = 917.5 + (19 / 2) = 927px
+            */
+            --info-textbox-bottom: 927px;
+            /* Title wrappers are 208px tall and use translateY(-50%) => half height = 104px */
+            --title-box-half: 104px;
+            /* Small visual tweak to match what you see (negative moves titles up) */
+            --title-align-fine-tune: -3px;
+        }
+        /* Glass half-transparent scrollbar – all pages */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.06);
+        }
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        *::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.06);
+            border-radius: 10px;
+        }
+        *::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.35);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+        *::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+            background-clip: padding-box;
+        }
+        *::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #FCFBF0;
+            /* Background color transition handled by JavaScript lerp in sketch.js */
+            position: relative;
+            transition: background-color 0.28s ease;
+        }
+        /* p5.js Canvas - ALWAYS IN FRONT LAYER */
+        canvas.p5Canvas,
+        canvas {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            z-index: 6000 !important; /* ABOVE 3D scene (5000) - fan always in front */
+            /* pointer-events controlled by JavaScript in draw() */
+            opacity: 1 !important;
+            visibility: visible !important;
+            display: block !important;
+        }
+        h1 {
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            font-size: 150pt;
+            position: fixed;
+            bottom: 0px;
+            left: 16px;
+            margin: 0;
+            line-height: 142pt;
+            z-index: 4000; /* Above 3D scene and fan */
+            text-transform: uppercase;
+            pointer-events: none;
+            color: #393939;
+            transition: opacity 0.28s ease;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            visibility: hidden;
+        }
+        h1.font-ready {
+            visibility: visible;
+        }
+        /* About page title: same style and position as homepage title, above canvas when visible */
+        .about-page-title {
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            font-size: 150pt;
+            position: fixed;
+            bottom: 0px;
+            left: 16px;
+            margin: 0;
+            line-height: 142pt;
+            z-index: 4000;
+            text-transform: uppercase;
+            pointer-events: none;
+            color: #393939;
+            font-synthesis: none;
+            text-rendering: optimizeLegibility;
+            transition: opacity 0.28s ease;
+        }
+        .about-page-title.visible,
+        #credits-title.visible {
+            z-index: 5500; /* Behind canvas (6000) – fan is front layer on all pages */
+        }
+        /* Peach Fuzz page text - same structure as Blue Turquoise */
+        .frame-peach-fuzz {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            color: #f6f5ea;
+            font-size: 120px;
+            text-align: right;
+            letter-spacing: 2.4px;
+            line-height: 0;
+            z-index: 5500; /* In front of 3D scene (5000) but behind canvas (6000) */
+            pointer-events: none; /* Don't block interactions */
+            opacity: 0 !important;
+            visibility: hidden !important;
+            display: none !important;
+            transition: opacity 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .frame-peach-fuzz.visible {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            display: none !important;
+        }
+        /* Generic color page text - for all other colors */
+        .frame-color-text {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            color: #f6f5ea;
+            font-size: 120px;
+            text-align: right;
+            letter-spacing: 2.4px;
+            line-height: 0;
+            z-index: 5500; /* In front of 3D scene (5000) but behind canvas (6000) */
+            pointer-events: none; /* Don't block interactions */
+            opacity: 0 !important;
+            visibility: hidden !important;
+            display: none !important;
+            transition: opacity 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .frame-color-text.visible {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            display: none !important;
+        }
+        /* Very Peri title tweak (same idea as Peach title adjustments) */
+        #color-text-container.is-very-peri .text-wrapper {
+            text-align: left;
+            align-items: flex-start;
+            /* Match Phantom Touch 2024 title box geometry */
+            left: 639px; /* moved 7px left */
+            width: 760px; /* actually wider than the base textbox so the 2nd row won't wrap */
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+            /* Align title box bottom to INFO button textbox bottom guideline */
+            top: calc(var(--info-textbox-bottom) - var(--title-box-half) + var(--title-align-fine-tune) - 2px); /* moved 2px up (net 3px down from prior) */
+        }
+        /* New Controlled Nature 2005 structure */
+        .frame-container {
+            background-color: rgba(0, 0, 0, 0);
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .text-wrapper {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            height: 208px;
+            justify-content: center;
+            line-height: 0;
+            left: 682px;
+            font-style: normal;
+            color: #f6f5ea;
+            font-size: 100px;
+            text-align: justify;
+            /* Align title box bottom to INFO button textbox bottom guideline */
+            top: calc(var(--info-textbox-bottom) - var(--title-box-half) + var(--title-align-fine-tune));
+            letter-spacing: 2px;
+            transform: translateY(-50%);
+            width: 669px;
+        }
+        .text-content {
+            letter-spacing: 0.32px;
+        }
+        .text-regular {
+            line-height: 100px;
+        }
+        .text-italic {
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            font-style: italic;
+            line-height: 100px;
+        }
+        /* Peach Fuzz custom title (per provided CSS) */
+        .frame-text-wrapper {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            height: 208px;
+            justify-content: center;
+            line-height: 0;
+            left: 724px;
+            font-style: normal;
+            color: #f6f5ea;
+            font-size: 100px;
+            /* Align title box bottom to INFO button textbox bottom guideline */
+            top: calc(var(--info-textbox-bottom) - var(--title-box-half) + var(--title-align-fine-tune));
+            letter-spacing: 2px;
+            transform: translateY(-50%);
+            text-transform: uppercase;
+            width: 608px;
+            text-align: left;
+            align-items: flex-start;
+        }
+        .frame-text {
+            line-height: 100px;
+            margin: 0;
+        }
+        .frame-text-italic {
+            font-style: italic;
+        }
+        .frame-text-regular {
+            font-style: normal;
+        }
+        /* INFO text element */
+        .info-text {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            font-style: normal;
+            height: 19px;
+            justify-content: center;
+            left: 22px;
+            top: 917.5px;
+            transform: translateY(-50%);
+            width: 65px;
+            line-height: 0;
+            color: #f7f6eb;
+            font-size: 14px;
+            text-transform: uppercase;
+            pointer-events: auto;
+        }
+        .info-text p {
+            line-height: normal;
+            margin: 0;
+        }
+        /* Helper class for shared paragraph styles */
+        .css-4hzbpn {
+            line-height: 120px;
+            margin: 0;
+        }
+        /* Blue Overlay (Blue Turquoise 15-5217) - Figma layout, pointer-events-none, scroll via JS */
+        #blue-overlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 5500;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+        }
+        #blue-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        /* Dim layer over 3D scene as user scrolls - pointer-events: none so 3D stays interactive */
+        #blue-overlay-dim {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 0;
+            transition: opacity 0.35s ease-out;
+        }
+        #blue-overlay-scroll {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            pointer-events: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        #blue-overlay-scroll.no-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.06);
+        }
+        #blue-overlay-scroll.no-scrollbar::-webkit-scrollbar { width: 10px; }
+        #blue-overlay-scroll.no-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.06); border-radius: 10px; }
+        #blue-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 10px; }
+        #blue-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+        .blue-overlay-inner {
+            position: relative;
+            width: 100%;
+            /* Height accommodates content; .2005 + details + footer moved 15px down */
+            height: 2627px;
+            overflow: hidden;
+        }
+        /* Fade-in-up animation (framer-motion equivalent) */
+        .blue-overlay-fade {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+        .blue-overlay-fade.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        /* DATA STREAM title - override global h1 completely so it always shows in overlay */
+        .blue-overlay-title {
+            position: absolute;
+            top: 567px;
+            left: 19px;
+            width: 828px;
+        }
+        #blue-overlay .blue-overlay-title .blue-overlay-title-text,
+        #blue-overlay .blue-overlay-title h1 {
+            position: relative !important;
+            bottom: auto !important;
+            left: auto !important;
+            top: auto !important;
+            right: auto !important;
+            visibility: visible !important;
+            display: block !important;
+            opacity: 1 !important;
+            color: #f6f5ea !important;
+            font-size: 150pt !important;
+            line-height: 142pt !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 500 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+        }
+        /* Section 2: Intro - directly below DATA STREAM */
+        .blue-overlay-intro1 {
+            position: absolute;
+            top: 996px;
+            left: 19px;
+            width: 266px;
+            color: #f6f5ea;
+            font-size: 16px;
+            font-weight: 300;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        /* Section 3: Big number */
+        .blue-overlay-year {
+            position: absolute;
+            top: 1671px;
+            right: 195px;
+            text-align: right;
+            color: #f6f5ea;
+            font-size: 200px;
+            font-weight: 500;
+            line-height: 200px;
+            font-family: 'Inter', sans-serif;
+            opacity: 0.25;
+        }
+        /* Section 4: Details – 3 text containers below .2005 */
+        .blue-overlay-details {
+            position: absolute;
+            top: 1966px;
+            width: 100%;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+        }
+        .blue-overlay-details .col-left {
+            position: absolute;
+            left: 19px;
+            width: 246px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .blue-overlay-details .col-mid {
+            position: absolute;
+            left: 295px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .blue-overlay-details .col-mid p:first-child {
+            font-weight: 300;
+            margin-bottom: 24px;
+        }
+        .blue-overlay-details .col-mid p:last-child {
+            font-weight: 300;
+        }
+        .blue-overlay-details .col-right {
+            position: absolute;
+            left: 570px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        /* Section 5: Footer - Experience label + two paragraphs */
+        .blue-overlay-footer {
+            position: absolute;
+            top: 2314px;
+            right: 309px;
+            left: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 30px;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        .blue-overlay-footer .label {
+            font-weight: 400;
+            display: block;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+        .blue-overlay-footer p {
+            margin: 0;
+            align-self: flex-start;
+            font-weight: 300;
+        }
+        .blue-overlay-footer > div {
+            align-self: flex-start;
+        }
+        .blue-overlay-footer > div:first-child {
+            transform: translateX(-12px);
+        }
+        .blue-overlay-footer .w-232 { width: 232px; flex-shrink: 0; }
+        .blue-overlay-footer .w-245 { width: 245px; flex-shrink: 0; }
+        /* Very Peri Overlay (17-3938) - same structure as Blue Turquoise, title COSMIC PLAYGROUND */
+        #very-peri-overlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 5500;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+        }
+        #very-peri-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        #very-peri-overlay-dim {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 0;
+            transition: opacity 0.35s ease-out;
+        }
+        #very-peri-overlay-scroll {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            pointer-events: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        #very-peri-overlay-scroll.no-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.06);
+        }
+        #very-peri-overlay-scroll.no-scrollbar::-webkit-scrollbar { width: 10px; }
+        #very-peri-overlay-scroll.no-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.06); border-radius: 10px; }
+        #very-peri-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 10px; }
+        #very-peri-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+        .very-peri-overlay-inner {
+            position: relative;
+            width: 100%;
+            /* Footer top 2726px + ~185px content + 60px below = scroll stops 60px under lower text container */
+            height: 2971px;
+            overflow: hidden;
+        }
+        .very-peri-overlay-fade {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+        .very-peri-overlay-fade.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .very-peri-overlay-title {
+            position: absolute;
+            top: 567px;
+            left: 19px;
+            width: 828px;
+        }
+        /* Light animated glitter shimmer for Very Peri title and year - more animated, less shiny */
+        @keyframes very-peri-glitter {
+            0%, 100% { text-shadow: 0 0 3px rgba(255,255,255,0.22), 0 0 8px rgba(255,250,248,0.14), 0 0 12px rgba(255,248,252,0.12), 1px 1px 0 rgba(255,255,255,0.1), -1px -1px 0 rgba(255,255,255,0.06); }
+            25% { text-shadow: 0 0 4px rgba(255,255,255,0.28), 0 0 10px rgba(255,250,248,0.18), 0 0 16px rgba(248,245,255,0.14), 1px 1px 0 rgba(255,255,255,0.12), -1px -1px 0 rgba(255,255,255,0.08); }
+            50% { text-shadow: 0 0 4px rgba(255,255,255,0.32), 0 0 11px rgba(255,250,248,0.2), 0 0 18px rgba(248,245,255,0.16), 1px 1px 0 rgba(255,255,255,0.14), -1px -1px 0 rgba(255,255,255,0.09); }
+            75% { text-shadow: 0 0 4px rgba(255,255,255,0.28), 0 0 10px rgba(255,250,248,0.18), 0 0 16px rgba(248,245,255,0.14), 1px 1px 0 rgba(255,255,255,0.12), -1px -1px 0 rgba(255,255,255,0.08); }
+        }
+        #very-peri-overlay .very-peri-overlay-title .very-peri-overlay-title-text,
+        #very-peri-overlay .very-peri-overlay-title h1 {
+            position: relative !important;
+            bottom: auto !important;
+            left: auto !important;
+            top: auto !important;
+            right: auto !important;
+            visibility: visible !important;
+            display: block !important;
+            opacity: 0.9 !important;
+            color: #f6f5ea !important;
+            font-size: 145pt !important;
+            line-height: 137pt !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 500 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+            /* Light glitter texture - slightly more animated, less shiny */
+            animation: very-peri-glitter 2.8s ease-in-out infinite;
+        }
+        .very-peri-overlay-intro1 {
+            position: absolute;
+            top: 989px;
+            left: 19px;
+            width: 266px;
+            color: #f6f5ea;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        .very-peri-overlay-year {
+            position: absolute;
+            top: 1669px;
+            right: 195px;
+            text-align: right;
+            color: #f6f5ea;
+            font-size: 200px;
+            font-weight: 500;
+            line-height: 200px;
+            font-family: 'Inter', sans-serif;
+            opacity: 0.9;
+            /* Same light glitter - slightly more animated, less shiny */
+            animation: very-peri-glitter 2.8s ease-in-out infinite;
+        }
+        .very-peri-overlay-details {
+            position: absolute;
+            top: 2074px;
+            width: 100%;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+        }
+        .very-peri-overlay-details .col-left {
+            position: absolute;
+            left: 19px;
+            width: 246px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .very-peri-overlay-details .col-mid {
+            position: absolute;
+            left: 295px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .very-peri-overlay-details .col-mid p:first-child {
+            font-weight: 300;
+            margin-bottom: 24px;
+        }
+        .very-peri-overlay-details .col-mid p:last-child {
+            font-weight: 300;
+        }
+        .very-peri-overlay-details .col-right {
+            position: absolute;
+            left: 570px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .very-peri-overlay-footer {
+            position: absolute;
+            top: 2726px;
+            right: 209px;
+            left: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 30px;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        .very-peri-overlay-footer .label {
+            font-weight: 400;
+            display: block;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+        .very-peri-overlay-footer p {
+            margin: 0;
+            align-self: flex-start;
+        }
+        .very-peri-overlay-footer > div {
+            align-self: flex-start;
+        }
+        .very-peri-overlay-footer > div:first-child {
+            transform: translateX(-12px);
+        }
+        .very-peri-overlay-footer .w-232 { width: 232px; flex-shrink: 0; }
+        .very-peri-overlay-footer .w-245 { width: 245px; flex-shrink: 0; }
+        /* Peach Fuzz Overlay (13-1023) - same structure as Blue Turquoise, title SYNTHETIC WARMTH */
+        #peach-fuzz-overlay {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 5500;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+            isolation: isolate; /* stacking context so grass (0) stays behind dim (1) and scroll (2) */
+        }
+        #peach-fuzz-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        #peach-fuzz-overlay-dim {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 1;
+            transition: opacity 0.35s ease-out;
+        }
+        #peach-fuzz-overlay-scroll {
+            position: relative;
+            z-index: 10;
+            isolation: isolate;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            pointer-events: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        #peach-fuzz-overlay-scroll.no-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.06);
+        }
+        #peach-fuzz-overlay-scroll.no-scrollbar::-webkit-scrollbar { width: 10px; }
+        #peach-fuzz-overlay-scroll.no-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.06); border-radius: 10px; }
+        #peach-fuzz-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 10px; }
+        #peach-fuzz-overlay-scroll.no-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+        .peach-fuzz-overlay-inner {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            /* Footer top 2447px + ~132px "To ground this..." paragraph + 45px below = scroll stops 45px under that text container */
+            height: 2624px;
+            overflow: hidden;
+        }
+        .peach-fuzz-overlay-fade {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        }
+        .peach-fuzz-overlay-fade.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .peach-fuzz-overlay-title {
+            position: absolute;
+            top: 567px;
+            left: 19px;
+            width: 828px;
+            pointer-events: auto;
+        }
+        #peach-fuzz-overlay .peach-fuzz-overlay-title .peach-fuzz-overlay-title-text,
+        #peach-fuzz-overlay .peach-fuzz-overlay-title h1 {
+            position: relative !important;
+            bottom: auto !important;
+            left: auto !important;
+            top: auto !important;
+            right: auto !important;
+            visibility: visible !important;
+            display: block !important;
+            opacity: 1 !important;
+            color: #f6f5ea !important;
+            font-size: 150pt !important;
+            line-height: 142pt !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 500 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+        }
+        .peach-fuzz-overlay-intro1 {
+            position: absolute;
+            top: 989px;
+            left: 19px;
+            width: 266px;
+            color: #f6f5ea;
+            font-size: 16px;
+            font-weight: 300;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-year {
+            position: absolute;
+            top: 1669px;
+            right: 195px;
+            text-align: right;
+            color: #f6f5ea;
+            font-size: 200px;
+            font-weight: 500;
+            line-height: 200px;
+            font-family: 'Inter', sans-serif;
+            opacity: 0.25;
+        }
+        .peach-fuzz-overlay-details {
+            position: absolute;
+            top: 2004px;
+            width: 100%;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+        }
+        .peach-fuzz-overlay-details .col-left {
+            position: absolute;
+            top: 0;
+            left: 19px;
+            width: 246px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-details .col-left.col-left-with-gap {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        .peach-fuzz-overlay-details .col-left.col-left-with-gap p {
+            margin: 0;
+        }
+        .peach-fuzz-overlay-details .col-left-2 {
+            position: absolute;
+            top: 0;
+            left: 295px;
+            width: 246px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-details .col-left-2 p {
+            margin: 0;
+        }
+        .peach-fuzz-overlay-details .col-left-2.col-left-with-gap {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        .peach-fuzz-overlay-details .col-mid {
+            position: absolute;
+            top: -15px;
+            left: 571px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-details .col-mid p:first-child {
+            font-weight: 300;
+            margin-bottom: 24px;
+        }
+        .peach-fuzz-overlay-details .col-mid p:last-child {
+            font-weight: 300;
+        }
+        .peach-fuzz-overlay-details .col-right {
+            position: absolute;
+            left: 846px;
+            width: 245px;
+            font-weight: 300;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-footer {
+            position: absolute;
+            top: 2447px;
+            right: 199px;
+            left: auto;
+            display: flex;
+            align-items: flex-start;
+            gap: 30px;
+            color: #f6f5ea;
+            font-size: 16px;
+            line-height: 22px;
+            font-family: 'Inter', sans-serif;
+        }
+        .peach-fuzz-overlay-footer .label {
+            font-weight: 400;
+            display: block;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+        .peach-fuzz-overlay-footer p {
+            margin: 0;
+            align-self: flex-start;
+            font-weight: 300;
+        }
+        .peach-fuzz-overlay-footer > div {
+            align-self: flex-start;
+        }
+        .peach-fuzz-overlay-footer > div:first-child {
+            transform: translateX(-12px);
+        }
+        .peach-fuzz-overlay-footer .w-232 { width: 232px; flex-shrink: 0; }
+        .peach-fuzz-overlay-footer .w-245 { width: 245px; flex-shrink: 0; }
+        /* Grass INSIDE peach-fuzz-overlay = back layer (z 0). Dim (z 1), scroll/UI (z 2). Fan (6000) on top. */
+        #peach-fuzz-overlay #grass-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+        #peach-fuzz-overlay #grass-layer #hairCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #peach-fuzz-overlay-dim { z-index: 1; }
+        #peach-fuzz-overlay-scroll { z-index: 2; }
+        #blue-overlay,
+        #very-peri-overlay,
+        #peach-fuzz-overlay {
+            z-index: 5500;
+        }
+        /* Only one overlay visible at a time: hide Peach Fuzz (and its grass) when Blue or Very Peri is shown */
+        body:has(#blue-overlay.visible) #peach-fuzz-overlay,
+        body:has(#very-peri-overlay.visible) #peach-fuzz-overlay {
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        /* When any color overlay is open: let events pass through p5 canvas so 3D scene (and grass hover) work */
+        body:has(#blue-overlay.visible) canvas:not(#hairCanvas),
+        body:has(#very-peri-overlay.visible) canvas:not(#hairCanvas),
+        body:has(#peach-fuzz-overlay.visible) canvas:not(#hairCanvas) {
+            pointer-events: none !important;
+        }
+        /* 2D Screen Text */
+        .screen-text-2d {
+            position: fixed;
+            left: calc(50% - 530px);
+            bottom: -291px;
+            font-family: 'Fira Mono', monospace;
+            font-size: 14px;
+            color: #FCFBF0;
+            z-index: 4000;
+            pointer-events: none;
+            text-align: left;
+            width: 600px;
+            max-width: calc(100vw - 60px);
+            height: 600px;
+            max-height: calc(100vh - 20px);
+            line-height: 1.6;
+            opacity: 0;
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out, filter 0.4s ease-out;
+            white-space: normal;
+            overflow: auto;
+            display: block;
+            transform: scale(1) translate(0, 0);
+            transform-origin: center center;
+            filter: blur(0px);
+        }
+        .screen-text-2d.transitioning-to-3d {
+            opacity: 0 !important;
+            transform: scale(0.3) translate(calc((50vw - 50%) * -1), calc((50vh - 50%) * -1));
+            filter: blur(20px);
+        }
+        .screen-text-2d p {
+            margin: 0 0 1.2em 0;
+            padding: 0;
+        }
+        .screen-text-2d p:last-child {
+            margin-bottom: 0;
+        }
+        .screen-text-2d.visible {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        /* Tranquility Text Box */
+        .screen-text-tranquility {
+            position: fixed;
+            left: calc(50% - 665px);
+            bottom: calc(-291px + 600px - 19px);
+            font-family: 'Fira Mono', monospace;
+            font-size: 14px;
+            color: #FCFBF0;
+            z-index: 4000;
+            pointer-events: none;
+            text-align: left;
+            opacity: 0;
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out, filter 0.4s ease-out;
+            white-space: nowrap;
+            display: block;
+            transform: scale(1) translate(0, 0);
+            transform-origin: center center;
+            filter: blur(0px);
+        }
+        .screen-text-tranquility.transitioning-to-3d {
+            opacity: 0 !important;
+            transform: scale(0.3) translate(calc((50vw - 50%) * -1), calc((50vh - 50%) * -1));
+            filter: blur(20px);
+        }
+        .screen-text-tranquility.visible {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        .scene-3d-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5000; /* Above everything including fan */
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease,
+                        transform 0.4s ease,
+                        filter 0.4s ease,
+                        visibility 0s linear 0.4s;
+            transform: scale(0.99) translateY(4px);
+            transform-origin: center center;
+            filter: blur(3px);
+            visibility: hidden;
+        }
+        
+        .scene-3d-container.visible {
+            opacity: 1 !important;
+            visibility: visible !important;
+            display: block !important;
+            pointer-events: auto !important; /* Enable interaction with 3D scene */
+            z-index: 5000 !important; /* Behind fan (6000) but still interactive */
+            transform: scale(1) translateY(0) !important;
+            filter: blur(0px) !important;
+        }
+        /* Disable fan container interaction when 3D scene is visible - but keep it VISIBLE and CLOSED */
+        .scene-3d-container.visible ~ #fan-container,
+        body:has(.scene-3d-container.visible) #fan-container {
+            pointer-events: none !important;
+            z-index: 1 !important;
+            opacity: 1 !important; /* Keep fan visible */
+            visibility: visible !important;
+            display: block !important; /* Ensure it's displayed */
+        }
+        /* Disable pointer events on fan cards when 3D is visible - but keep them VISIBLE */
+        .scene-3d-container.visible ~ #fan-container .pantone-card,
+        body:has(.scene-3d-container.visible) #fan-container .pantone-card {
+            pointer-events: none !important;
+            opacity: 1 !important; /* Keep cards visible */
+            visibility: visible !important;
+            display: flex !important; /* Ensure cards are displayed */
+        }
+        .scene-3d-container.visible spline-viewer.active {
+            pointer-events: auto !important; /* Enable interaction with Spline scene */
+        }
+        .scene-3d-container.transitioning-in {
+            opacity: 1 !important;
+            transform: scale(1) translateY(0) !important;
+            filter: blur(0px) !important;
+        }
+        #scene-3d {
+            width: 100%;
+            height: 100%;
+        }
+        spline-viewer {
+            width: 100% !important;
+            height: 100% !important;
+            display: none !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            pointer-events: none !important;
+            z-index: 1 !important; /* Inside container */
+            visibility: hidden !important;
+            opacity: 0 !important;
+            background-color: transparent !important; /* Allow container background to show through */
+            transition: opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease;
+            transform: scale(0.99) translateY(2px);
+            filter: blur(2px);
+        }
+        .scene-3d-container.visible spline-viewer.active {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important; /* Enable interaction with Spline scene */
+            z-index: 1 !important;
+            position: absolute !important;
+            width: 100% !important;
+            height: 100% !important;
+            top: 0 !important;
+            left: 0 !important;
+            transform: scale(1) !important;
+            filter: blur(0px) !important;
+        }
+        spline-viewer.hidden {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        /* Color Info Bar */
+        .color-info-bar {
+            /* פריסה על כל רוחב המסך */
+            display: flex;
+            justify-content: space-between; /* יוצר רווח שווה ומקסימלי בין האלמנטים */
+            align-items: center; /* ממרכז אותם אנכית אחד מול השני */
+            
+            /* מיקום על המסך */
+            position: fixed;
+            bottom: 20px; /* הריווח הקטן מהקצה התחתון שביקשת */
+            left: 0;
+            right: 0;
+            
+            /* ריווח מהצדדים כדי שלא ייגעו ממש בשפיץ של המסך */
+            padding: 0 40px; 
+            
+            /* הגדרות טקסט כלליות */
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+        }
+        
+        /* כדי שהקוד צבע יהיה בדיוק באמצע, נותנים לשני הצדדים "משקל" שווה */
+        .year, .color-name {
+            flex: 1;
+        }
+        
+        .color-code {
+            text-align: center;
+        }
+        
+        .color-name {
+            text-align: right; /* מצמיד את שם הצבע לימין */
+        }
+        
+        .year {
+            text-align: left; /* מצמיד את השנה לשמאל */
+        }
+        
+        /* Frame Navbar - always on top, never affected by page transitions (position unchanged) */
+        .frame-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 9500 !important; /* Above canvas (6000) – always on top */
+            transition: none !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        
+        .frame-container {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            /* 43px = equal gap (15px smaller) */
+            gap: 43px;
+            left: 15px;
+            top: 21px;
+            z-index: 8000 !important;
+            pointer-events: none;
+            transition: none !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        
+        .frame-item-credits,
+        .frame-item-about,
+        .frame-item-color {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            flex-shrink: 0;
+            pointer-events: auto;
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #393939; /* Default for white pages */
+            transition: none !important; /* Navbar not affected by page transitions */
+            /* Reserve width for bold (500) so click doesn’t shift layout */
+            box-sizing: border-box;
+        }
+        /* Min-width = width at font-weight 500 */
+        .frame-item-credits { min-width: 70px; margin-left: 0; }
+        .frame-item-about { min-width: 60px; margin-left: 2px; }
+        .frame-item-color { min-width: 176px; margin-left: -3.2px; }
+        
+        /* Logo in navbar row – same gap as buttons; hover animation on shapes; no clip */
+        .frame-item-logo {
+            flex-shrink: 0;
+            width: 43px;
+            height: 29px;
+            margin-left: 10.6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            cursor: default;
+            background: transparent;
+            overflow: visible;
+        }
+        .frame-item-logo .logo {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            color: #393939;
+            background: transparent;
+            overflow: visible;
+        }
+        body.color-selected .frame-item-logo .logo {
+            color: #f7f6eb;
+        }
+        .frame-item-logo .logo svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+        /* Allow shapes to move outside – remove SVG clip so hover animation isn’t cut off */
+        .frame-item-logo .logo svg g {
+            clip-path: none;
+        }
+        /* Logo hover: each vector moves slightly – playful, staggered */
+        .frame-item-logo .logo svg .logo-shape {
+            transition: transform 0.38s cubic-bezier(0.68, -0.4, 0.265, 1.4);
+        }
+        .frame-item-logo .logo svg .logo-shape:nth-child(2) { transition-delay: 0.02s; }
+        .frame-item-logo .logo svg .logo-shape:nth-child(3) { transition-delay: 0.05s; }
+        .frame-item-logo .logo svg .logo-shape:nth-child(4) { transition-delay: 0.08s; }
+        .frame-item-logo:hover .logo svg .logo-shape:nth-child(1) {
+            transform: matrix(-0.999982, -0.00607251, 0.00572423, -0.999984, 61.0098, 31) translate(2px, -1.5px);
+        }
+        .frame-item-logo:hover .logo svg .logo-shape:nth-child(2) {
+            transform: translate(-1.2px, 1.5px);
+        }
+        .frame-item-logo:hover .logo svg .logo-shape:nth-child(3) {
+            transform: translate(1px, -1px);
+        }
+        .frame-item-logo:hover .logo svg .logo-shape:nth-child(4) {
+            transform: translate(-0.8px, 1.2px);
+        }
+        
+        .frame-item-credits p,
+        .frame-item-about p,
+        .frame-item-color p {
+            line-height: normal;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* On colored pages, use light text */
+        body.color-selected .frame-item-credits,
+        body.color-selected .frame-item-about,
+        body.color-selected .frame-item-color {
+            color: #f7f6eb !important;
+        }
+        
+        /* Home title: show on Color of the Year home only (no color page, no about, no credits) */
+        #main-text {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        body:not(.color-selected):not(.page-about):not(.page-credits) #main-text {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        /* On any color page (Very Peri, Peach Fuzz, etc.): force-hide Credits/About nav content so it never bleeds through */
+        body.color-selected #credits-title,
+        body.color-selected #credits-text-container,
+        body.color-selected #credits-video-container,
+        body.color-selected #about-title,
+        body.color-selected #about-text-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        
+        /* Ensure white pages use dark text */
+        body:not(.color-selected) .frame-item-credits,
+        body:not(.color-selected) .frame-item-about,
+        body:not(.color-selected) .frame-item-color {
+            color: #393939 !important;
+        }
+        
+        /* Active nav item: same font, medium weight */
+        .frame-item-credits.active,
+        .frame-item-about.active,
+        .frame-item-color.active {
+            font-weight: 500;
+        }
+        
+        .frame-item-credits,
+        .frame-item-about,
+        .frame-item-color {
+            cursor: pointer;
+            transition: font-weight 0.2s ease;
+        }
+        
+        /* Static pages (About) - structure only; stay BELOW canvas so fan is visible on About */
+        .static-page {
+            position: fixed;
+            inset: 0;
+            background-color: transparent;
+            z-index: 3500;
+            display: none;
+            pointer-events: none;
+        }
+        .static-page.visible {
+            display: block;
+            /* z-index 3500 = below canvas (6000) so the ONE About page shows: white body + fan + title */
+        }
+        
+        /* ABOUT PAGE: when body.page-about, nav + canvas (fan) + about title + white bg. Show about title. */
+        body.page-about #main-text,
+        body.page-about #scene-3d-container,
+        body.page-about #blue-overlay,
+        body.page-about #blue-overlay-dim,
+        body.page-about #very-peri-overlay,
+        body.page-about #very-peri-overlay-dim,
+        body.page-about #peach-fuzz-overlay,
+        body.page-about #peach-fuzz-overlay-dim,
+        body.page-about #peach-fuzz-text,
+        body.page-about #color-text-container,
+        body.page-about #credits-page,
+        body.page-about #credits-title,
+        body.page-about #credits-video-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+        body.page-about #about-title {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        body.page-about {
+            background-color: #FCFBF0 !important;
+        }
+        body.page-about .frame-wrapper { z-index: 9500 !important; transition: none !important; opacity: 1 !important; visibility: visible !important; }
+        body.page-about .frame-container { z-index: 8000 !important; transition: none !important; opacity: 1 !important; visibility: visible !important; }
+        body.page-about canvas.p5Canvas,
+        body.page-about canvas { pointer-events: auto !important; }
+        /* CREDITS PAGE: when body.page-credits, nav + canvas (fan) + credits title + white bg. Show credits title. */
+        body.page-credits #main-text,
+        body.page-credits #scene-3d-container,
+        body.page-credits #blue-overlay,
+        body.page-credits #blue-overlay-dim,
+        body.page-credits #very-peri-overlay,
+        body.page-credits #very-peri-overlay-dim,
+        body.page-credits #peach-fuzz-overlay,
+        body.page-credits #peach-fuzz-overlay-dim,
+        body.page-credits #peach-fuzz-text,
+        body.page-credits #color-text-container,
+        body.page-credits #about-page,
+        body.page-credits #about-title,
+        body.page-credits #about-text-container,
+        body.page-credits #about-video-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+        body.page-credits #credits-title {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        body.page-credits #credits-video-container {
+            display: flex !important;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 3vw;
+            visibility: visible !important;
+            opacity: 1 !important;
+            transition: opacity 0.35s ease !important;
+        }
+        body.page-credits #credits-text-container {
+            transition: opacity 0.35s ease !important;
+        }
+        /* Re-applied shape: single mask, square → uneven → square, no transition to avoid glitches */
+        body.page-credits #credits-video-container .credits-video-mask {
+            flex-shrink: 0;
+            position: relative;
+            transform: translate(-157px, 95px);
+            -webkit-transform: translate(-157px, 95px);
+            transition: none !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            animation: credits-shape-morph 4s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+            -webkit-animation: credits-shape-morph 4s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+        }
+        @keyframes credits-shape-morph {
+            0%, 100% {
+                clip-path: polygon(0 0, 20% 0, 40% 0, 60% 0, 80% 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 80% 100%, 60% 100%, 40% 100%, 20% 100%, 0 100%, 0 75%, 0 50%, 0 25%);
+                -webkit-clip-path: polygon(0 0, 20% 0, 40% 0, 60% 0, 80% 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 80% 100%, 60% 100%, 40% 100%, 20% 100%, 0 100%, 0 75%, 0 50%, 0 25%);
+            }
+            50% {
+                clip-path: polygon(2% 3%, 22% 0, 42% 3%, 62% 1%, 82% 2%, 98% 4%, 99% 22%, 100% 48%, 98% 74%, 99% 96%, 78% 98%, 58% 100%, 38% 97%, 18% 99%, 1% 96%, 0 72%, 2% 48%, 0 24%);
+                -webkit-clip-path: polygon(2% 3%, 22% 0, 42% 3%, 62% 1%, 82% 2%, 98% 4%, 99% 22%, 100% 48%, 98% 74%, 99% 96%, 78% 98%, 58% 100%, 38% 97%, 18% 99%, 1% 96%, 0 72%, 2% 48%, 0 24%);
+            }
+        }
+        body.page-credits {
+            background-color: #FCFBF0 !important;
+        }
+        body.page-credits .frame-wrapper { z-index: 9500 !important; transition: none !important; opacity: 1 !important; visibility: visible !important; }
+        body.page-credits .frame-container { z-index: 8000 !important; transition: none !important; opacity: 1 !important; visibility: visible !important; }
+        body.page-credits canvas.p5Canvas,
+        body.page-credits canvas { pointer-events: auto !important; }
+        /* Smoother page transitions on nav pages */
+        body.page-about,
+        body.page-credits {
+            transition: background-color 0.4s ease !important;
+        }
+        body.page-about #main-text,
+        body.page-about #blue-overlay,
+        body.page-about #very-peri-overlay,
+        body.page-about #peach-fuzz-overlay,
+        body.page-about #scene-3d-container,
+        body.page-credits #main-text,
+        body.page-credits #blue-overlay,
+        body.page-credits #very-peri-overlay,
+        body.page-credits #peach-fuzz-overlay,
+        body.page-credits #scene-3d-container {
+            transition: none !important;
+        }
+        /* Credits page: video shape container – hidden by default, shown only on body.page-credits */
+        #credits-video-container.credits-video-wrap {
+            position: fixed;
+            inset: 0;
+            z-index: 3400;
+            display: none;
+            visibility: hidden;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        #credits-video-container .credits-video-mask {
+            position: absolute;
+            width: 612px;
+            height: 612px;
+            overflow: hidden;
+            contain: layout style paint;
+        }
+        #credits-video-container .credits-video-mask #credits-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+        /* About text containers – BELOW canvas (5500) so cards (6000) reveal text as they move right */
+        #about-text-container {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5500;
+            pointer-events: none;
+            display: none;
+            background: transparent;
+        }
+        body.page-about #about-text-container {
+            display: block;
+            transition: opacity 0.35s ease;
+        }
+        /* About text: long container = 32px, caps, regular weight, 2% letter-spacing, same hierarchy */
+        .about-text-main {
+            font-family: 'Inter', sans-serif;
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            line-height: 1.35;
+            color: #393939;
+            margin: 0;
+            position: absolute;
+            left: 24px;
+            top: 53px;
+            width: 730px;
+            display: flex;
+            flex-direction: column;
+            gap: 29.4px; /* 2% smaller than 30px between the 3 paragraph containers */
+        }
+        /* Each paragraph block in its own container */
+        .about-text-block {
+            margin: 0;
+        }
+        .about-text-main p {
+            margin: 0;
+        }
+        /* Credits page text – same font as about bigger text (Inter 32px, light, caps) */
+        #credits-text-container {
+            position: fixed;
+            left: 24px;
+            top: 53px;
+            width: 1200px;
+            z-index: 5500;
+            pointer-events: none;
+            display: none;
+            visibility: hidden;
+        }
+        body.page-credits #credits-text-container {
+            display: block !important;
+            visibility: visible !important;
+        }
+        /* Credits upper text: exact same text styles as .about-text-main (About page paragraphs container) */
+        .credits-text-main {
+            font-family: 'Inter', sans-serif;
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            line-height: 1.35;
+            color: #393939;
+            margin: 0;
+            width: 1200px;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .credits-text-main p {
+            margin: 0;
+        }
+        .credits-not-affiliated {
+            font-size: 12pt;
+        }
+        /* About page: video masked to piled-cards shape (right half), shown 2s after cards pile */
+        .about-video-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 5500; /* Behind canvas (6000) – fan is front layer */
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            /* Clip to right-half pile shape (matches sketch.js pile area: 50% to 100%, ~10% to ~90% vertical) */
+            clip-path: polygon(50% 10%, 100% 10%, 100% 90%, 50% 90%);
+            -webkit-clip-path: polygon(50% 10%, 100% 10%, 100% 90%, 50% 90%);
+        }
+        .about-video-mask.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .about-video-mask #about-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+    </style>
+</head>
+<body>
+    <!-- Frame Navbar: About | Logo | Color of the Year – same row; logo is non-interactive -->
+    <div class="frame-wrapper" data-name="Frame 1 - 48">
+        <div class="frame-container">
+            <div class="frame-item-logo" aria-hidden="true" role="img" aria-label="Logo">
+                <div class="logo">
+                    <svg fill="none" viewBox="0 0 61.1815 31">
+                        <g>
+                            <ellipse class="logo-shape" 
+                                cx="15" cy="15" rx="15" ry="15" 
+                                fill="currentColor" 
+                                transform="matrix(-0.999982 -0.00607251 0.00572423 -0.999984 61.0098 31)" 
+                            />
+                            <path class="logo-shape" d="M31.4385 0.600586L28.8682 30.4902L21.8945 29.8896L24.4648 0L31.4385 0.600586Z" fill="currentColor" />
+                            <path class="logo-shape" d="M22.5811 0.367188L21.5166 30.3486L14.5215 30.1006L15.5859 0.119141L22.5811 0.367188Z" fill="currentColor" />
+                            <path class="logo-shape" d="M14 30.2227H0V0.222656H14V30.2227Z" fill="currentColor" />
+                        </g>
+                        <defs>
+                            <clipPath id="clip0_5_27">
+                                <rect fill="white" height="31" width="61.1815" />
+                            </clipPath>
+                        </defs>
+                    </svg>
+                </div>
+            </div>
+            <div class="frame-item-credits" data-nav="credits">
+                <p dir="auto">Credits</p>
+            </div>
+            <div class="frame-item-about" data-nav="about">
+                <p dir="auto">About</p>
+            </div>
+            <div class="frame-item-color" data-nav="color">
+                <p dir="auto">Color of the Year</p>
+            </div>
+        </div>
+    </div>
+    <div id="scene-3d-container" class="scene-3d-container">
+        <spline-viewer id="spline-viewer-blue"></spline-viewer>
+        <spline-viewer id="spline-viewer-peach"></spline-viewer>
+        <spline-viewer id="spline-viewer-default"></spline-viewer>
+    </div>
+    
+    <!-- About page (same bg as home) -->
+    <div id="about-page" class="static-page" aria-hidden="true">
+        <div class="static-page-inner"></div>
+    </div>
+    <!-- About page: video masked to piled-cards shape (right side), shown 2s after cards pile. Set video src below or in JS. -->
+    <div id="about-video-container" class="about-video-mask" aria-hidden="true">
+        <video id="about-video" playsinline muted loop src=""></video>
+    </div>
+    <!-- About page text – revealed when hover on cards (cleanup to right) -->
+    <div id="about-text-container" aria-hidden="true">
+        <div class="about-text-main">
+            <div class="about-text-block">
+                <p>Pantone is the global consensus.</p>
+                <p>It&nbsp;is the universal agreement on color, a brilliant system that brings order to chaos. But&nbsp;standardization sometime creates a&nbsp;flattening&nbsp;effect.</p>
+            </div>
+            <div class="about-text-block">
+                <p>LENS gives that reality volume.</p>
+                <p>WE TURN the 2D swatch into living<br>3D environments, transforming the "Color of the Year" from a&nbsp;objective fact into a deeply subjective experience.</p>
+            </div>
+            <div class="about-text-block">
+                <p>Here,&nbsp;color isn't just viewed.</p>
+                <p>It&nbsp;is inhabited.</p>
+            </div>
+        </div>
+    </div>
+    <h1 id="about-title" class="about-page-title" aria-hidden="true" style="opacity:0;visibility:hidden;">about.</h1>
+    <!-- Credits page: video inside morphing shape (single mask for stability) -->
+    <div id="credits-video-container" class="credits-video-wrap" aria-hidden="true">
+        <div class="credits-video-mask">
+            <video id="credits-video" playsinline muted loop autoplay preload="auto" src="My Movie 5.mov"></video>
+        </div>
+    </div>
+    <div id="credits-page" class="static-page" aria-hidden="true">
+        <div class="static-page-inner"></div>
+    </div>
+    <h1 id="credits-title" class="about-page-title" aria-hidden="true" style="opacity:0;visibility:hidden;">credits.</h1>
+    <div id="credits-text-container" aria-hidden="true">
+        <div class="credits-text-main">
+            <div class="about-text-block">
+                <p>If it looks Aesthetic: That's Pantone's colors <span class="credits-not-affiliated">(Not affiliated)</span></p>
+            </div>
+            <div class="about-text-block">
+                <p class="credits-bezalel">If it looks "Intentional": That's Studio WWW, Bezalel Academy.</p>
+            </div>
+            <div class="about-text-block">
+                <p>If it looks broken: That's Me.</p>
+            </div>
+        </div>
+    </div>
+    <h1 id="main-text">color of<br>the year</h1>
+    <div class="frame-peach-fuzz" data-name="Frame 1 - Peach Fuzz" id="peach-fuzz-text">
+        <div class="frame-container">
+            <div class="frame-text-wrapper">
+                <p class="frame-text" dir="auto">
+                    <span class="frame-text-regular">PHANTOM TOUCH </span><span class="frame-text-italic">2024</span>
+                </p>
+            </div>
+        </div>
+    </div>
+    <!-- Generic Color Text Container -->
+    <div class="frame-color-text" id="color-text-container">
+        <div class="frame-container">
+            <div class="text-wrapper">
+                <p class="text-content" dir="auto" id="color-text-content">
+                    <span class="text-regular" id="color-name-text"></span>
+                    <span class="text-italic" id="color-year-text"></span>
+                </p>
+            </div>
+        </div>
+    </div>
+    <!-- Blue Overlay (Blue Turquoise 15-5217) - scrollable, pointer-events-none -->
+    <div id="blue-overlay">
+        <div id="blue-overlay-dim" aria-hidden="true"></div>
+        <div id="blue-overlay-scroll" class="no-scrollbar">
+            <div class="blue-overlay-inner">
+                <!-- Title - no transition, always visible -->
+                <div class="blue-overlay-title">
+                    <h1 class="blue-overlay-title-text">DATA<br>STREAM</h1>
+                </div>
+                <!-- Section 2: Intro -->
+                <div class="blue-overlay-fade blue-overlay-intro1" data-fade>
+                    In 2005, Pantone selected Blue Turquoise, citing a collective need for calm and reassurance inspired by the sea.
+                </div>
+                <!-- Section 3: Big number -->
+                <div class="blue-overlay-fade blue-overlay-year" data-fade>.2005</div>
+                <!-- Section 4: Details -->
+                <div class="blue-overlay-details">
+                    <p class="blue-overlay-fade col-left" data-fade>
+                        This&nbsp;digital installation recontextualizes that choice through the lens of the year's defining technological event: the official launch of YouTube.
+                    </p>
+                    <div class="blue-overlay-fade col-mid" data-fade data-fade-delay="0.2">
+                        <p>This&nbsp;moment marked a digital phase change the historic transition from a static, text-based web to an era of continuous, fluid video streaming.</p>
+                        <p>The&nbsp;simulation interprets the color not merely as a pigment, but as a representation of "Data Liquefaction."</p>
+                    </div>
+                    <p class="blue-overlay-fade col-right" data-fade data-fade-delay="0.4">
+                        The&nbsp;floating 3D forms act as encapsulated data packets within this new stream. Unlike&nbsp;flat pixels, these "liquid lenses" possess density and weight, simulating the heavy bandwidth required to transmit moving images for the first time. They&nbsp;hover in a state of suspension, a visual reference to the buffering process, where raw data is accumulated and stabilized before flowing into motion.
+                    </p>
+                </div>
+                <!-- Section 5: Footer -->
+                <div class="blue-overlay-footer">
+                    <div class="blue-overlay-fade" data-fade>
+                        <span class="label">Experience</span>
+                    </div>
+                    <p class="blue-overlay-fade w-232" data-fade>
+                        The&nbsp;visual experience is submerged in an oceanic soundscape to reinforce the sensation of immersion. The&nbsp;audio simulates the hydrostatic pressure of being "underwater" in this new flood of content.
+                    </p>
+                    <p class="blue-overlay-fade w-245" data-fade>
+                        It&nbsp;acts as an acoustic isolator, emphasizing the physical weight of navigating a world that has effectively turned to liquid.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Very Peri Overlay (17-3938) - COSMIC PLAYGROUND, same structure + dim as Blue Turquoise -->
+    <div id="very-peri-overlay">
+        <div id="very-peri-overlay-dim" aria-hidden="true"></div>
+        <div id="very-peri-overlay-scroll" class="no-scrollbar">
+            <div class="very-peri-overlay-inner">
+                <div class="very-peri-overlay-title">
+                    <h1 class="very-peri-overlay-title-text">COSMIC<br>PLAYGROUND</h1>
+                </div>
+                <div class="very-peri-overlay-fade very-peri-overlay-intro1" data-fade>
+                    In 2022, Pantone introduced Very Peri, a color created from scratch to symbolize the global transformation and the fusion of our physical and digital lives.
+                </div>
+                <div class="very-peri-overlay-fade very-peri-overlay-year" data-fade>.2022</div>
+                <div class="very-peri-overlay-details">
+                    <p class="very-peri-overlay-fade col-left" data-fade>
+                        This&nbsp;digital installation aligns that choice with the year's monumental scientific achievement: the first operational images from the James Webb Space Telescope (JWST). This&nbsp;event redefined our optical boundaries, shifting the focus from terrestrial observation to deep-field infrared spectroscopy.
+                    </p>
+                    <div class="very-peri-overlay-fade col-mid" data-fade data-fade-delay="0.2">
+                        <p>The&nbsp;simulation treats the color not as a pigment, but as a visualization of previously invisible data. The&nbsp;3D environment creates a zero-gravity topology where suspended spheres and connecting vectors mimic the geometry of orbital mechanics.</p>
+                    </div>
+                    <p class="very-peri-overlay-fade col-right" data-fade data-fade-delay="0.4">
+                        The&nbsp;violet hue serves as a background radiation field, representing the "New Digital Cosmos" - a space where data points are interconnected across vast, calculated distances, mirroring the structure of galactic networks revealed by the telescope.
+                    </p>
+                </div>
+                <div class="very-peri-overlay-footer">
+                    <div class="very-peri-overlay-fade" data-fade>
+                        <span class="label">Environment</span>
+                    </div>
+                    <p class="very-peri-overlay-fade w-232" data-fade>
+                        The&nbsp;auditory layer is designed to evoke scale rather than melody. The&nbsp;soundscape utilizes distorted, nocturnal frequencies to simulate a "Cosmic Night" - an environment where the silence of the vacuum is replaced by the hum of vast data processing.
+                    </p>
+                    <p class="very-peri-overlay-fade w-245" data-fade>
+                        It&nbsp;places the viewer at the edge of the known interface, staring into a system that is simultaneously ancient and synthetically new.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Peach Fuzz Overlay (13-1023) - SYNTHETIC WARMTH, same structure + dim as Blue Turquoise -->
+    <div id="peach-fuzz-overlay">
+        <div id="peach-fuzz-overlay-dim" aria-hidden="true"></div>
+        <div id="peach-fuzz-overlay-scroll" class="no-scrollbar">
+            <div class="peach-fuzz-overlay-inner">
+                <div class="peach-fuzz-overlay-title">
+                    <h1 class="peach-fuzz-overlay-title-text">SYNTHETIC<br>WARMTH</h1>
+                </div>
+                <div class="peach-fuzz-overlay-fade peach-fuzz-overlay-intro1" data-fade>
+                    In 2024, Pantone selected Peach Fuzz to highlight a yearning for closeness, tactile connection, and warmth.
+                </div>
+                <div class="peach-fuzz-overlay-fade peach-fuzz-overlay-year" data-fade>.2024</div>
+                <div class="peach-fuzz-overlay-details">
+                    <div class="peach-fuzz-overlay-fade col-left col-left-with-gap" data-fade>
+                        <p>
+                            This&nbsp;installation reinterprets that sentiment through the technological paradigm that defined the year: the rise of Spatial Computing and the breaking of the "fourth wall" between screen and user.
+                        </p>
+                        <p>
+                            The&nbsp;artwork visualizes the shift from flat displays to immersive environments where digital objects demand to be "touched."
+                        </p>
+                    </div>
+                    <div class="peach-fuzz-overlay-fade col-left-2" data-fade data-fade-delay="0.1">
+                        <p>The&nbsp;simulation focuses on "Haptic Visuality" - the ability of the eye to perceive texture before the hand makes contact. The&nbsp;screen is densely populated with thousands of vertical fibers, creating a living field that challenges the cold precision of the pixel with biological softness.</p>
+                    </div>
+                    <div class="peach-fuzz-overlay-fade col-mid" data-fade data-fade-delay="0.2">
+                        <p>This&nbsp;is not merely decoration, but a study in synthetic density; it questions whether a digital simulation can effectively replicate the comforting physics of organic matter within a virtual space.</p>
+                    </div>
+                </div>
+                <div class="peach-fuzz-overlay-footer">
+                    <div class="peach-fuzz-overlay-fade" data-fade>
+                        <span class="label">Environment</span>
+                    </div>
+                    <p class="peach-fuzz-overlay-fade w-232" data-fade>
+                        To&nbsp;ground this synthetic field, the soundscape is strictly terrestrial. The&nbsp;audio consists of dry, high-fidelity nature recordings (crickets, shifting grass), acting as a "Reality Anchor."
+                    </p>
+                    <p class="peach-fuzz-overlay-fade w-245" data-fade>
+                        This&nbsp;auditory layer creates a deliberate dissonance with the digital visual, bridging the gap between the artificial "peach skin" on screen and the genuine sensory experience of the physical world.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Shared UI text transition: Blue Turquoise, Very Peri, Peach Fuzz – same fade-in-up on scroll (exclude title + header: code, year, name)
+        function initColorOverlayTransition(config) {
+            var scrollEl = document.getElementById(config.scrollId);
+            var overlayEl = document.getElementById(config.overlayId);
+            var dimEl = document.getElementById(config.dimId);
+            if (!scrollEl || !overlayEl) return;
+
+            var observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (!entry.isIntersecting) return;
+                    var el = entry.target;
+                    var delay = el.getAttribute('data-fade-delay');
+                    var addVisible = function() { el.classList.add('visible'); };
+                    if (delay) setTimeout(addVisible, parseFloat(delay) * 1000);
+                    else addVisible();
+                    observer.unobserve(el);
+                });
+            }, { root: scrollEl, rootMargin: '-100px 0px', threshold: 0 });
+
+            function observeFadeElements() {
+                var inner = scrollEl.querySelector(config.innerSelector);
+                if (!inner) return;
+                // Same transition as Blue Turquoise: all [data-fade] (title and header have no data-fade, so excluded)
+                inner.querySelectorAll('[data-fade]').forEach(function(el) { observer.observe(el); });
+            }
+
+            function onWheel(e) {
+                if (!overlayEl.classList.contains('visible')) return;
+                scrollEl.scrollTop += e.deltaY;
+                e.preventDefault();
+            }
+            function updateDim() {
+                if (!dimEl || !overlayEl.classList.contains('visible')) return;
+                var t = Math.min(scrollEl.scrollTop / 800, 1);
+                var maxOpacity = config.dimMaxOpacity != null ? config.dimMaxOpacity : 0.22;
+                dimEl.style.opacity = (t * maxOpacity).toFixed(3);
+            }
+            function onScroll() { updateDim(); }
+            function resetFadeElements() {
+                scrollEl.querySelectorAll('[data-fade].visible').forEach(function(el) {
+                    el.classList.remove('visible');
+                });
+            }
+
+            var mo = new MutationObserver(function(mutations) {
+                mutations.forEach(function(m) {
+                    if (m.attributeName !== 'class') return;
+                    if (overlayEl.classList.contains('visible')) {
+                        observeFadeElements();
+                        document.addEventListener('wheel', onWheel, { capture: true, passive: false });
+                        scrollEl.addEventListener('scroll', onScroll, { passive: true });
+                        updateDim();
+                    } else {
+                        document.removeEventListener('wheel', onWheel, { capture: true });
+                        scrollEl.removeEventListener('scroll', onScroll);
+                        resetFadeElements();
+                        if (dimEl) dimEl.style.opacity = '0';
+                    }
+                });
+            });
+            mo.observe(overlayEl, { attributes: true });
+            if (overlayEl.classList.contains('visible')) {
+                observeFadeElements();
+                document.addEventListener('wheel', onWheel, { capture: true, passive: false });
+                scrollEl.addEventListener('scroll', onScroll, { passive: true });
+                updateDim();
+            }
+        }
+
+        initColorOverlayTransition({
+            scrollId: 'blue-overlay-scroll',
+            overlayId: 'blue-overlay',
+            dimId: 'blue-overlay-dim',
+            innerSelector: '.blue-overlay-inner'
+        });
+        initColorOverlayTransition({
+            scrollId: 'very-peri-overlay-scroll',
+            overlayId: 'very-peri-overlay',
+            dimId: 'very-peri-overlay-dim',
+            innerSelector: '.very-peri-overlay-inner'
+        });
+        initColorOverlayTransition({
+            scrollId: 'peach-fuzz-overlay-scroll',
+            overlayId: 'peach-fuzz-overlay',
+            dimId: 'peach-fuzz-overlay-dim',
+            innerSelector: '.peach-fuzz-overlay-inner',
+            dimMaxOpacity: 0.32
+        });
+    </script>
+    <script>
+        /* PURE JS GRASS EFFECT – Peach Fuzz page; under UI, above 3D; flowy weed-like motion */
+        (function() {
+            var overlayEl = document.getElementById('peach-fuzz-overlay');
+            if (!overlayEl) return;
+
+            var grassLayer = document.createElement('div');
+            grassLayer.id = 'grass-layer';
+            var canvas = document.createElement('canvas');
+            canvas.id = 'hairCanvas';
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            grassLayer.appendChild(canvas);
+            overlayEl.insertBefore(grassLayer, overlayEl.firstChild);
+            var ctx = canvas.getContext('2d');
+
+            var width, height;
+            var dpr = Math.min(window.devicePixelRatio || 1, 2);
+            var count = Math.round(520 * 0.9);
+            var strands = [];
+            var random = function(min, max) { return Math.random() * (max - min) + min; };
+            var lerp = function(start, end, amt) { return (1 - amt) * start + amt * end; };
+            var map = function(value, start1, stop1, start2, stop2) {
+                return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
+            };
+            var smoothStep = function(t) { return t * t * (3 - 2 * t); };
+
+            /* Gradient: #D7603D base, light gradient, slightly lighter at edge (tip) */
+            var colRoot = [215, 96, 61];    /* #D7603D base */
+            var colMid = [228, 125, 95];    /* lighter mid */
+            var colTip = [242, 165, 132];   /* slightly lighter at edge */
+
+            function Strand() {
+                this.x = random(0, width);
+                /* A lot higher on sides, slightly higher in middle; roots fully below viewport */
+                var nx = this.x / width;
+                var baseBelow = 88;
+                var sideRise = 22 + 150 * (nx - 0.5) * (nx - 0.5);
+                this.y = height + baseBelow - sideRise + random(-2, 2);
+                /* Longer on sides, shorter in middle; uneven */
+                var baseH = random(380, 620) * (0.75 + random(0, 0.35));
+                var sideFactor = 0.82 + 0.36 * (1 - 4 * (nx - 0.5) * (nx - 0.5));
+                this.h = baseH * sideFactor;
+                this.segments = 32 + Math.floor(random(0, 14));
+                this.baseAngle = (random(-3, 3) + 4) * (Math.PI / 180);
+                this.currentAngle = this.baseAngle;
+                this.velAngle = 0;
+                this.phase1 = random(0, Math.PI * 2);
+                this.phase2 = random(0, Math.PI * 2);
+                this.phase3 = random(0, Math.PI * 2);
+                this.amplitude1 = 0.04 + random(0, 0.04);
+                this.amplitude2 = 0.02 + random(0, 0.03);
+                this.freq1 = 0.0012 + random(0, 0.0008);
+                this.freq2 = 0.003 + random(0, 0.002);
+            }
+            Strand.prototype.update = function(time, mouseX, mouseY, mouseVelX) {
+                var t = time * 0.016;
+                /* Multi-layer wind: slow primary + faster secondary + very slow drift = organic grass motion */
+                var wind1 = Math.sin(t * this.freq1 * 1000 + this.phase1) * this.amplitude1;
+                var wind2 = Math.sin(t * this.freq2 * 1000 + this.phase2) * this.amplitude2;
+                var drift = Math.sin(t * 0.4 + this.phase3) * 0.008;
+                var dx = Math.abs(mouseX - this.x);
+                var mouseForce = 0;
+                var grassZoneTop = height * 0.55;
+                if (mouseY > grassZoneTop) {
+                    var proximityX = map(Math.min(dx, 160), 0, 160, 1, 0);
+                    proximityX = smoothStep(proximityX);
+                    /* Velocity-based: strong movement push */
+                    mouseForce += (mouseVelX * 0.022) * proximityX;
+                    /* Proximity-based: strong hover bend away from cursor (visible when not moving) */
+                    var bendAway = (mouseX - this.x) * 0.0018 * proximityX;
+                    mouseForce += bendAway;
+                }
+                var target = this.baseAngle + wind1 + wind2 + drift + mouseForce;
+                /* Follow target so interaction is visible; slight damping for smooth motion */
+                this.velAngle += (target - this.currentAngle) * 0.028;
+                this.velAngle *= 0.85;
+                this.currentAngle += this.velAngle;
+            };
+            Strand.prototype.draw = function() {
+                var x = this.x;
+                var y = this.y;
+                var angle = this.currentAngle - (Math.PI / 2);
+                var segLen = this.h / this.segments;
+                for (var i = 0; i < this.segments; i++) {
+                    var t = i / (this.segments - 1);
+                    var bend = smoothStep(t) * 0.6;
+                    var sway = Math.sin(t * Math.PI + this.phase1 * 0.1) * 0.015;
+                    var specificAngle = angle + (this.currentAngle - this.baseAngle) * bend + sway;
+                    var nextX = x + Math.cos(specificAngle) * segLen;
+                    var nextY = y + Math.sin(specificAngle) * segLen;
+                    var c1, c2, mix;
+                    if (t < 0.45) {
+                        c1 = colRoot; c2 = colMid; mix = map(t, 0, 0.45, 0, 1);
+                    } else {
+                        c1 = colMid; c2 = colTip; mix = map(t, 0.45, 1, 0, 1);
+                    }
+                    var r = Math.round(lerp(c1[0], c2[0], mix));
+                    var g = Math.round(lerp(c1[1], c2[1], mix));
+                    var b = Math.round(lerp(c1[2], c2[2], mix));
+                    var alpha = t < 0.45 ? 0.88 : 0.78;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(nextX, nextY);
+                    ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+                    ctx.lineWidth = Math.max(0.2, map(t, 0, 1, 3.2, 0.28));
+                    ctx.stroke();
+                    x = nextX;
+                    y = nextY;
+                    angle += Math.sin(Date.now() * 0.0008 + this.phase2) * 0.0008;
+                }
+            };
+
+            function resize() {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = Math.round(width * dpr);
+                canvas.height = Math.round(height * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                strands.length = 0;
+                for (var s = 0; s < count; s++) strands.push(new Strand());
+            }
+            var resizeTid;
+            function debouncedResize() {
+                if (resizeTid) clearTimeout(resizeTid);
+                resizeTid = setTimeout(function() { resizeTid = 0; resize(); }, 120);
+            }
+            window.addEventListener('resize', debouncedResize);
+            resize();
+
+            var time = 0;
+            var pmouseX = 0;
+            var mouseX = 0, mouseY = 0;
+            var mouseVelX = 0;
+            window.addEventListener('mousemove', function(e) {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            function loop() {
+                if (!overlayEl.classList.contains('visible')) {
+                    requestAnimationFrame(loop);
+                    return;
+                }
+                ctx.clearRect(0, 0, width, height);
+                time++;
+                mouseVelX = mouseX - pmouseX;
+                pmouseX = mouseX;
+                ctx.globalAlpha = 0.8;
+                for (var i = 0; i < strands.length; i++) {
+                    strands[i].update(time, mouseX, mouseY, mouseVelX);
+                    strands[i].draw();
+                }
+                ctx.globalAlpha = 1;
+                requestAnimationFrame(loop);
+            }
+            loop();
+        })();
+    </script>
+    <script>
+        // Prevent font swap glitch by waiting for font to load
+        (function() {
+            const h1 = document.getElementById('main-text');
+            if (!h1) return;
+            
+            function showText() {
+                h1.classList.add('font-ready');
+            }
+            
+            // Inter is loaded from Google Fonts, wait for fonts to be ready
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(function() {
+                    showText();
+                });
+            } else {
+                // Fallback: show after a delay
+                window.addEventListener('load', function() {
+                    setTimeout(showText, 200);
+                });
+            }
+            
+            // Also show immediately as fallback for system fonts
+            setTimeout(showText, 100);
+        })();
+        
+        // Initialize navbar text color on page load (white page = #393939)
+        (function() {
+            let navbarContainers = document.querySelectorAll('.text-container');
+            navbarContainers.forEach(container => {
+                container.style.setProperty('color', '#393939', 'important');
+            });
+        })();
+        
+        // Nav: active state (medium weight) and page switching (Credits, About, Color of the Year)
+        (function() {
+            var currentPage = 'color';
+            var aboutPage = document.getElementById('about-page');
+            var creditsPage = document.getElementById('credits-page');
+            var mainText = document.getElementById('main-text');
+            var aboutTitle = document.getElementById('about-title');
+            var creditsTitle = document.getElementById('credits-title');
+            var navItems = document.querySelectorAll('.frame-item-credits, .frame-item-about, .frame-item-color');
+            
+            function setActiveNav(page) {
+                currentPage = page;
+                navItems.forEach(function(el) {
+                    var nav = el.getAttribute('data-nav');
+                    if (nav === page) el.classList.add('active');
+                    else el.classList.remove('active');
+                });
+            }
+            
+            function showPage(page) {
+                /* Tell sketch to snap bg and reset selection immediately so draw() doesn't overwrite transition (no glass layer / freeze) */
+                if (typeof window.sketchOnPageChange === 'function') window.sketchOnPageChange(page);
+                /* Turn off Spline sounds immediately when user navigates to another page (Credits or About) */
+                if (page === 'credits' || page === 'about') {
+                    if (typeof window.stopSplineViewerAudioOnly === 'function') window.stopSplineViewerAudioOnly();
+                }
+                var creditsVideoContainer = document.getElementById('credits-video-container');
+                var creditsVideo = document.getElementById('credits-video');
+                var blueOverlay = document.getElementById('blue-overlay');
+                var veryPeriOverlay = document.getElementById('very-peri-overlay');
+                var peachFuzzOverlay = document.getElementById('peach-fuzz-overlay');
+                var scene3D = document.getElementById('scene-3d-container');
+                var blueDim = document.getElementById('blue-overlay-dim');
+                var veryPeriDim = document.getElementById('very-peri-overlay-dim');
+                var peachFuzzDim = document.getElementById('peach-fuzz-overlay-dim');
+                var creditsTitle = document.getElementById('credits-title');
+                var creditsTextContainer = document.getElementById('credits-text-container');
+                
+                /* CREDITS: remove color-selected so CSS body.page-credits shows video; instant like other nav pages */
+                if (page === 'credits') {
+                    document.body.classList.remove('color-selected');
+                    document.body.classList.remove('page-about');
+                    document.body.classList.add('page-credits');
+                    document.body.style.setProperty('transition', 'none', 'important');
+                    document.body.style.setProperty('background-color', '#FCFBF0', 'important');
+                    /* Clear any inline display/visibility so CSS body.page-credits rules apply */
+                    if (creditsVideoContainer) {
+                        creditsVideoContainer.style.removeProperty('display');
+                        creditsVideoContainer.style.removeProperty('visibility');
+                        creditsVideoContainer.style.removeProperty('opacity');
+                        creditsVideoContainer.setAttribute('aria-hidden', 'false');
+                    }
+                    if (creditsVideo) {
+                        creditsVideo.style.removeProperty('display');
+                        creditsVideo.style.removeProperty('visibility');
+                        creditsVideo.style.removeProperty('opacity');
+                        creditsVideo.load();
+                        creditsVideo.play().catch(function() {});
+                    }
+                    if (creditsTitle) {
+                        creditsTitle.style.removeProperty('display');
+                        creditsTitle.style.removeProperty('visibility');
+                        creditsTitle.style.removeProperty('opacity');
+                        creditsTitle.setAttribute('aria-hidden', 'false');
+                        creditsTitle.classList.add('visible');
+                    }
+                    if (creditsTextContainer) {
+                        creditsTextContainer.style.removeProperty('display');
+                        creditsTextContainer.style.removeProperty('visibility');
+                        creditsTextContainer.style.removeProperty('opacity');
+                        creditsTextContainer.setAttribute('aria-hidden', 'false');
+                    }
+                    if (typeof window.stopSplineViewerAudioOnly === 'function') window.stopSplineViewerAudioOnly();
+                } else {
+                    document.body.classList.remove('page-about', 'page-credits');
+                    document.body.classList.remove('color-selected');
+                    document.body.style.setProperty('transition', 'none', 'important');
+                    document.body.style.setProperty('background-color', '#FCFBF0', 'important');
+                }
+                
+                if (page !== 'credits') {
+                    if (page === 'about') document.body.classList.add('page-about');
+                    if (page === 'credits') document.body.classList.add('page-credits');
+                }
+                
+                if (page !== 'credits') {
+                    if (page === 'credits' || page === 'about') {
+                        if (typeof window.stopSplineViewerAudioOnly === 'function') window.stopSplineViewerAudioOnly();
+                    }
+                    /* Hide all color-page content (no mix) – clear visibility/opacity so no glass layer from p5 inline styles */
+                    if (blueOverlay) {
+                        blueOverlay.classList.remove('visible');
+                        blueOverlay.style.setProperty('display', 'none', 'important');
+                        blueOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        blueOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (veryPeriOverlay) {
+                        veryPeriOverlay.classList.remove('visible');
+                        veryPeriOverlay.style.setProperty('display', 'none', 'important');
+                        veryPeriOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        veryPeriOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (peachFuzzOverlay) {
+                        peachFuzzOverlay.classList.remove('visible');
+                        peachFuzzOverlay.style.setProperty('display', 'none', 'important');
+                        peachFuzzOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        peachFuzzOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (blueDim) { blueDim.style.opacity = '0'; blueDim.style.setProperty('display', 'none', 'important'); }
+                    if (veryPeriDim) { veryPeriDim.style.opacity = '0'; veryPeriDim.style.setProperty('display', 'none', 'important'); }
+                    if (peachFuzzDim) { peachFuzzDim.style.opacity = '0'; peachFuzzDim.style.setProperty('display', 'none', 'important'); }
+                    if (scene3D) {
+                        scene3D.classList.remove('visible', 'transitioning-in');
+                        scene3D.style.setProperty('display', 'none', 'important');
+                        scene3D.style.setProperty('visibility', 'hidden', 'important');
+                        scene3D.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (mainText) {
+                        mainText.style.setProperty('display', 'none', 'important');
+                        mainText.style.setProperty('opacity', '0', 'important');
+                        mainText.style.setProperty('visibility', 'hidden', 'important');
+                    }
+                    /* When switching TO color: clear inline on Credits/About so CSS body.color-selected hides them (no inline override) */
+                    if (page === 'color') {
+                        var creditsTitleEl = document.getElementById('credits-title');
+                        var creditsTextEl = document.getElementById('credits-text-container');
+                        var creditsVideoEl = document.getElementById('credits-video-container');
+                        if (creditsTitleEl) { creditsTitleEl.style.removeProperty('display'); creditsTitleEl.style.removeProperty('visibility'); creditsTitleEl.style.removeProperty('opacity'); }
+                        if (creditsTextEl) { creditsTextEl.style.removeProperty('display'); creditsTextEl.style.removeProperty('visibility'); creditsTextEl.style.removeProperty('opacity'); }
+                        if (creditsVideoEl) { creditsVideoEl.style.removeProperty('display'); creditsVideoEl.style.removeProperty('visibility'); creditsVideoEl.style.removeProperty('opacity'); }
+                    }
+                } else {
+                    /* Credits: now hide color-page content so only credits + fan visible */
+                    if (blueOverlay) {
+                        blueOverlay.classList.remove('visible');
+                        blueOverlay.style.setProperty('display', 'none', 'important');
+                        blueOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        blueOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (veryPeriOverlay) {
+                        veryPeriOverlay.classList.remove('visible');
+                        veryPeriOverlay.style.setProperty('display', 'none', 'important');
+                        veryPeriOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        veryPeriOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (peachFuzzOverlay) {
+                        peachFuzzOverlay.classList.remove('visible');
+                        peachFuzzOverlay.style.setProperty('display', 'none', 'important');
+                        peachFuzzOverlay.style.setProperty('visibility', 'hidden', 'important');
+                        peachFuzzOverlay.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (blueDim) { blueDim.style.opacity = '0'; blueDim.style.setProperty('display', 'none', 'important'); }
+                    if (veryPeriDim) { veryPeriDim.style.opacity = '0'; veryPeriDim.style.setProperty('display', 'none', 'important'); }
+                    if (peachFuzzDim) { peachFuzzDim.style.opacity = '0'; peachFuzzDim.style.setProperty('display', 'none', 'important'); }
+                    if (scene3D) {
+                        scene3D.classList.remove('visible', 'transitioning-in');
+                        scene3D.style.setProperty('display', 'none', 'important');
+                        scene3D.style.setProperty('visibility', 'hidden', 'important');
+                        scene3D.style.setProperty('opacity', '0', 'important');
+                    }
+                    if (mainText) {
+                        mainText.style.setProperty('display', 'none', 'important');
+                        mainText.style.setProperty('opacity', '0', 'important');
+                        mainText.style.setProperty('visibility', 'hidden', 'important');
+                    }
+                }
+                
+                if (aboutPage) {
+                    if (page === 'about') { aboutPage.classList.add('visible'); aboutPage.setAttribute('aria-hidden', 'false'); }
+                    else { aboutPage.classList.remove('visible'); aboutPage.setAttribute('aria-hidden', 'true'); }
+                }
+                if (creditsPage) {
+                    if (page === 'credits') { creditsPage.classList.add('visible'); creditsPage.setAttribute('aria-hidden', 'false'); }
+                    else { creditsPage.classList.remove('visible'); creditsPage.setAttribute('aria-hidden', 'true'); }
+                }
+                if (mainText) {
+                    if (page === 'color') {
+                        mainText.style.removeProperty('display');
+                        mainText.style.setProperty('opacity', '1', 'important');
+                        mainText.style.setProperty('visibility', 'visible', 'important');
+                    }
+                }
+                if (aboutTitle) {
+                    aboutTitle.style.opacity = page === 'about' ? '1' : '0';
+                    aboutTitle.style.visibility = page === 'about' ? 'visible' : 'hidden';
+                    aboutTitle.setAttribute('aria-hidden', page === 'about' ? 'false' : 'true');
+                    aboutTitle.classList.toggle('visible', page === 'about');
+                }
+                if (creditsTitle) {
+                    if (page === 'credits') {
+                        creditsTitle.style.removeProperty('display');
+                        creditsTitle.style.opacity = '1';
+                        creditsTitle.style.visibility = 'visible';
+                    } else {
+                        creditsTitle.style.opacity = '0';
+                        creditsTitle.style.visibility = 'hidden';
+                    }
+                    creditsTitle.setAttribute('aria-hidden', page === 'credits' ? 'false' : 'true');
+                    creditsTitle.classList.toggle('visible', page === 'credits');
+                }
+                var creditsTextContainer = document.getElementById('credits-text-container');
+                if (creditsTextContainer) {
+                    creditsTextContainer.setAttribute('aria-hidden', page === 'credits' ? 'false' : 'true');
+                    if (page === 'credits') {
+                        creditsTextContainer.style.removeProperty('display');
+                        creditsTextContainer.style.removeProperty('visibility');
+                        creditsTextContainer.style.removeProperty('opacity');
+                    }
+                }
+                if (creditsVideoContainer) {
+                    if (page === 'credits') {
+                        creditsVideoContainer.style.removeProperty('display');
+                        creditsVideoContainer.style.removeProperty('visibility');
+                        creditsVideoContainer.style.removeProperty('opacity');
+                        creditsVideoContainer.setAttribute('aria-hidden', 'false');
+                        if (creditsVideo) {
+                            creditsVideo.style.removeProperty('display');
+                            creditsVideo.style.removeProperty('visibility');
+                            creditsVideo.style.removeProperty('opacity');
+                            creditsVideo.load();
+                            creditsVideo.play().catch(function() {});
+                        }
+                    } else {
+                        creditsVideoContainer.style.removeProperty('display');
+                        creditsVideoContainer.style.removeProperty('visibility');
+                        creditsVideoContainer.style.removeProperty('opacity');
+                        creditsVideoContainer.setAttribute('aria-hidden', 'true');
+                    }
+                }
+                if (creditsVideo && page !== 'credits') {
+                    creditsVideo.pause();
+                    creditsVideo.currentTime = 0;
+                }
+                
+                /* Restore overlay/dim display only when on color page so overlays can show for color detail */
+                if (page === 'color') {
+                    if (blueOverlay) blueOverlay.style.removeProperty('display');
+                    if (veryPeriOverlay) veryPeriOverlay.style.removeProperty('display');
+                    if (peachFuzzOverlay) peachFuzzOverlay.style.removeProperty('display');
+                    if (blueDim) blueDim.style.removeProperty('display');
+                    if (veryPeriDim) veryPeriDim.style.removeProperty('display');
+                    if (peachFuzzDim) peachFuzzDim.style.removeProperty('display');
+                    if (scene3D) scene3D.style.removeProperty('display');
+                }
+                
+                window.aboutPageVisible = (page === 'about');
+                setActiveNav(page);
+            }
+            
+            navItems.forEach(function(el) {
+                el.addEventListener('click', function() {
+                    var page = el.getAttribute('data-nav');
+                    /* Stop Spline scene sound immediately when leaving color page for Credits/About (no glitch) */
+                    if (page === 'credits' || page === 'about') {
+                        if (typeof window.stopSplineViewerAudioOnly === 'function') window.stopSplineViewerAudioOnly();
+                    }
+                    if (page) showPage(page);
+                });
+            });
+            
+            setActiveNav('color');
+            window.aboutPageVisible = false;
+            
+            window.onNavigateToHome = function() {
+                showPage('color');
+            };
+        })();
+    </script>
+    <script src="sketch.js"></script>
+</body>
+</html>
